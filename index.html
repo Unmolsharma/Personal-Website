@@ -109,28 +109,27 @@ button { font: inherit; color: inherit; }
 .stripes { background: repeating-linear-gradient(var(--ang, 135deg), color-mix(in srgb, var(--c) 30%, var(--die-core)) 0 var(--w, 2px), color-mix(in srgb, var(--c) 10%, var(--die-core)) var(--w, 2px) var(--pitch, 7px)); }
 
 /* ---------- Boot: board routes itself, then the chip flies into the die's spot and becomes it ---------- */
-#boot { position: fixed; inset: 0; z-index: 50; display: grid; grid-template-columns: minmax(0, 46ch) minmax(0, 1fr); gap: 24px; padding: max(20px, env(safe-area-inset-top, 0px)) max(20px, env(safe-area-inset-right, 0px)) max(76px, env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left, 0px)); overflow: hidden; transition: opacity .3s ease-out; }
+[hidden] { display: none !important; }
+#boot { position: fixed; inset: 0; z-index: 50; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: 16px; padding: max(20px, env(safe-area-inset-top, 0px)) max(20px, env(safe-area-inset-right, 0px)) max(76px, env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left, 0px)); overflow: hidden; transition: opacity .3s ease-out; }
 #boot .cell { position: relative; min-width: 0; min-height: 0; display: grid; place-items: center; }
-@media (max-width: 900px) { #boot { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: 12px; } }
 #boot .bg { position: absolute; inset: 0; background: var(--board); }
 #boot.gone { opacity: 0; pointer-events: none; }
-#boot svg.pcb { position: relative; width: 100%; height: 100%; max-width: 1100px; transform-origin: 50% 50%; }
-#boot.zoom svg.pcb { transition: transform .8s cubic-bezier(.65, 0, .25, 1); }
-#boot #pcb-board { transition: opacity .45s ease-out; }
-#boot.zoom #pcb-board { opacity: 0; }
+#boot svg.pcb { position: relative; width: 100%; height: 100%; transform-origin: 50% 50%; }
+#boot.zoom svg.pcb { transition: transform 1.2s cubic-bezier(.55, 0, .2, 1); }
+#boot.zoom #pcb-board { opacity: 0; transition: opacity .45s ease-in .6s; }
 #boot #pcb-chip text { transition: opacity .3s ease-out; }
 #boot.zoom #pcb-chip text { opacity: 0; }
 #boot .trace { fill: none; stroke: var(--copper); stroke-width: 3; stroke-linecap: square; stroke-linejoin: miter; stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset .5s ease-out; }
 #boot.route .trace { stroke-dashoffset: 0; }
 #boot .via { fill: var(--board); stroke: var(--copper); stroke-width: 2; opacity: 0; transition: opacity .2s; }
 #boot.route .via { opacity: 1; }
-#boot .log { position: relative; z-index: 2; align-self: center; font: 400 13px/1.75 var(--f-mono); color: #8E8B85; white-space: pre-wrap; transition: opacity .3s ease-out; }
-#boot .log > div { padding-left: 16ch; text-indent: -16ch; }
+#boot .log { position: relative; z-index: 2; align-self: start; width: 100%; max-width: 1100px; justify-self: center; height: calc(6 * 1.6em); columns: 2; column-gap: 48px; column-fill: auto; font: 400 11.5px/1.6 var(--f-mono); color: #8E8B85; white-space: pre-wrap; transition: opacity .3s ease-out; }
+#boot .log > div { padding-left: 18ch; text-indent: -18ch; break-inside: avoid; }
 #boot .log .v { color: var(--silk); }
 #boot .log .ok { color: #8FD18A; }
 #boot.zoom .log { opacity: 0; }
-@media (max-width: 900px) { #boot .log { align-self: start; font-size: 12px; } }
-@media (max-width: 420px) { #boot .log { font-size: 11px; } }
+@media (max-width: 760px) { #boot .log { columns: 1; height: auto; font-size: 11px; } }
+@media (max-width: 420px) { #boot .log { font-size: 10px; } }
 #boot .skip { position: absolute; right: max(24px, env(safe-area-inset-right, 0px)); bottom: max(24px, env(safe-area-inset-bottom, 0px)); z-index: 3; min-height: 44px; padding: 0 16px; border: 1px solid #4A4C52; background: var(--board); color: var(--silk); font: 500 14px/1 var(--f-body); cursor: pointer; border-radius: 2px; transition: opacity .3s; }
 #boot.zoom .skip { opacity: 0; }
 #boot .skip:hover { border-color: var(--silk); }
@@ -166,6 +165,9 @@ button { font: inherit; color: inherit; }
 /* While booting, only the die's spot exists; the rest fades in after the chip lands */
 .hud, .readout, .die { transition: opacity .45s ease-out; }
 body.booting .hud, body.booting .readout, body.booting .die { opacity: 0; }
+/* During the zoom the real die rides on top of the chip and grows with it */
+body.zooming .stage { z-index: 60; background: transparent; pointer-events: none; }
+body.zooming .die { opacity: 1; transition: transform 1.2s cubic-bezier(.55, 0, .2, 1), opacity .35s ease-out .15s; }
 
 /* ---------- Window: what's inside a block ---------- */
 ::view-transition-group(open) { animation-duration: .55s; animation-timing-function: cubic-bezier(.2, .8, .2, 1); }
@@ -630,85 +632,122 @@ function buildBoard(root) {
   root.replaceChildren();
   const svg = s("g", { id: "pcb-board" }); const chip = s("g", { id: "pcb-chip" });
   root.append(svg, chip);
-  const W = 1200, H = 760, cx = 600, cy = 380, half = 110, pins = 10, pitch = 18;
+  const W = 1200, H = 760, cx = 600, cy = 380, half = 165, pins = 12, pitch = 22, mid = (pins - 1) / 2;
   svg.append(s("rect", { x: 20, y: 20, width: W - 40, height: H - 40, rx: 18, fill: "var(--board-2)", stroke: "#34363B", "stroke-width": 2 }));
   [[52, 52], [W - 52, 52], [52, H - 52], [W - 52, H - 52]].forEach(([x, y]) => svg.append(s("circle", { cx: x, cy: y, r: 13, fill: "var(--board)", stroke: "var(--copper)", "stroke-width": 5 })));
   const silk = (x, y, t, size, anchor) => { const e = s("text", { x, y, fill: "var(--silk)", "font-family": "Geist Mono, monospace", "font-size": size || 14, "text-anchor": anchor || "start", opacity: 0.85 }); e.textContent = t; svg.append(e); };
-  silk(W - 90, H - 50, "FAB TORONTO · ASSY NASHVILLE", 13, "end");
+  silk(W - 90, H - 34, "FAB TORONTO · ASSY NASHVILLE", 13, "end");
   const traces = [];
   const addTrace = (d, end) => { traces.push(s("path", { d, class: "trace", pathLength: 1 })); if (end) traces.push(s("circle", { cx: end[0], cy: end[1], r: 6, class: "via" })); };
+  const pinEnd = half + 14;
   for (let i = 0; i < pins; i++) {
-    const off = (i - (pins - 1) / 2) * pitch;
-    // left edge connector → left pins
-    const ly = 150 + i * 48, lx = 250 + Math.abs(i - (pins - 1) / 2) * 16;
-    addTrace(`M 70 ${ly} H ${lx} V ${cy + off} H ${cx - half - 14}`, [70, ly]);
-    // right edge connector → right pins
-    const ry = 150 + i * 48, rx = W - 250 - Math.abs(i - (pins - 1) / 2) * 16;
-    addTrace(`M ${W - 70} ${ry} H ${rx} V ${cy + off} H ${cx + half + 14}`, [W - 70, ry]);
-    // top header → top pins
-    const tx = 380 + i * 50, ty = 170 + Math.abs(i - (pins - 1) / 2) * 10;
-    addTrace(`M ${tx} 100 V ${ty} H ${cx + off} V ${cy - half - 14}`, [tx, 100]);
-    // bottom pins → passives
-    const bx = 330 + i * 60, by = H - 180 - Math.abs(i - (pins - 1) / 2) * 10;
-    addTrace(`M ${cx + off} ${cy + half + 14} V ${by} H ${bx} V ${H - 120}`, [bx, H - 120]);
+    const off = (i - mid) * pitch, out = Math.abs(i - mid);
+    const ly = cy + (i - mid) * 46, lx = 250 + out * 14;
+    addTrace(`M 70 ${ly} H ${lx} V ${cy + off} H ${cx - pinEnd}`, [70, ly]);
+    addTrace(`M ${W - 70} ${ly} H ${W - lx} V ${cy + off} H ${cx + pinEnd}`, [W - 70, ly]);
+    const tx = cx + (i - mid) * 40, ty = 110 + out * 8;
+    addTrace(`M ${tx} 100 V ${ty} H ${cx + off} V ${cy - pinEnd}`, [tx, 100]);
+    const bx = cx + (i - mid) * 42, by = H - 150 - out * 8;
+    addTrace(`M ${cx + off} ${cy + pinEnd} V ${by} H ${bx} V ${H - 120}`, [bx, H - 120]);
   }
-  traces.forEach((t, i) => { if (t.tagName === "path") t.style.transitionDelay = (i * 6) + "ms"; svg.append(t); });
-  // edge connector pads and header pads
+  traces.forEach((t, i) => { if (t.tagName === "path") t.style.transitionDelay = (i * 5) + "ms"; svg.append(t); });
   for (let i = 0; i < pins; i++) {
-    svg.append(s("rect", { x: 30, y: 150 + i * 48 - 12, width: 28, height: 24, fill: "var(--copper)" }));
-    svg.append(s("rect", { x: W - 58, y: 150 + i * 48 - 12, width: 28, height: 24, fill: "var(--copper)" }));
-    svg.append(s("rect", { x: 380 + i * 50 - 10, y: 72, width: 20, height: 20, fill: "var(--copper)" }));
-    const bx = 330 + i * 60;
+    const ly = cy + (i - mid) * 46;
+    svg.append(s("rect", { x: 30, y: ly - 11, width: 28, height: 22, fill: "var(--copper)" }));
+    svg.append(s("rect", { x: W - 58, y: ly - 11, width: 28, height: 22, fill: "var(--copper)" }));
+    svg.append(s("rect", { x: cx + (i - mid) * 40 - 10, y: 72, width: 20, height: 20, fill: "var(--copper)" }));
+    const bx = cx + (i - mid) * 42;
     svg.append(s("rect", { x: bx - 12, y: H - 120, width: 24, height: 40, fill: "#3B3D42", stroke: "var(--copper)", "stroke-width": 2 }));
-    silk(bx, H - 66, (i % 2 ? "R" : "C") + (i + 1), 11, "middle");
+    silk(bx, H - 64, (i % 2 ? "R" : "C") + (i + 1), 11, "middle");
   }
-  silk(30, 140, "J1", 12); silk(W - 30, 140, "J2", 12, "end"); silk(380 - 10, 66, "J3 · SWD", 12);
-  // the chip (QFP)
+  // decoupling caps above the chip's top corners
+  [[-1, -1], [1, -1]].forEach(([sx, sy]) => {
+    const x = cx + sx * (half + 46), y = cy + sy * (half + 46);
+    svg.append(s("rect", { x: x - 11, y: y - 6, width: 22, height: 12, fill: "#3B3D42" }));
+    svg.append(s("rect", { x: x - 11, y: y - 6, width: 6, height: 12, fill: "var(--copper)" }));
+    svg.append(s("rect", { x: x + 5, y: y - 6, width: 6, height: 12, fill: "var(--copper)" }));
+  });
+  // pin numbers at the row ends, silkscreen style
+  const e0 = (pins - 1) / 2 * pitch;
+  [["1", cx - half - 8, cy - e0 - 12, "middle"], ["12", cx - half - 8, cy + e0 + 18, "middle"],
+   ["13", cx - e0 - 12, cy + half + 12, "end"], ["24", cx + e0 + 12, cy + half + 12, "start"],
+   ["25", cx + half + 8, cy + e0 + 18, "middle"], ["36", cx + half + 8, cy - e0 - 12, "middle"],
+   ["37", cx + e0 + 12, cy - half - 4, "start"], ["48", cx - e0 - 12, cy - half - 4, "end"]].forEach(([t, x, y, a]) => silk(x, y, t, 10, a));
+  // the chip (QFP): leads, mold body, bevel, pin-1 dot, ejector mark
   for (let i = 0; i < pins; i++) {
-    const off = (i - (pins - 1) / 2) * pitch;
+    const off = (i - mid) * pitch;
     svg.append(s("rect", { x: cx - half - 16, y: cy + off - 4, width: 18, height: 8, fill: "#C9CBD0" }));
     svg.append(s("rect", { x: cx + half - 2, y: cy + off - 4, width: 18, height: 8, fill: "#C9CBD0" }));
     svg.append(s("rect", { x: cx + off - 4, y: cy - half - 16, width: 8, height: 18, fill: "#C9CBD0" }));
     svg.append(s("rect", { x: cx + off - 4, y: cy + half - 2, width: 8, height: 18, fill: "#C9CBD0" }));
   }
-  chip.append(s("rect", { id: "chip-body", x: cx - half, y: cy - half, width: half * 2, height: half * 2, rx: 6, fill: "var(--die)", stroke: "#3A3C42", "stroke-width": 2 }));
+  chip.append(s("rect", { id: "chip-body", x: cx - half, y: cy - half, width: half * 2, height: half * 2, rx: 8, fill: "var(--die)", stroke: "#3A3C42", "stroke-width": 2 }));
+  chip.append(s("rect", { x: cx - half + 12, y: cy - half + 12, width: half * 2 - 24, height: half * 2 - 24, rx: 4, fill: "none", stroke: "#30333A", "stroke-width": 2 }));
+  chip.append(s("circle", { cx: cx - half + 22, cy: cy - half + 22, r: 6, fill: "#16181C" }));
+  // real pinout: STM32F103 LQFP-48 (pin 1 top-left, counter-clockwise)
+  const PINS = ["VBAT","PC13","PC14","PC15","OSC_IN","OSC_OUT","NRST","VSSA","VDDA","PA0","PA1","PA2",
+    "PA3","PA4","PA5","PA6","PA7","PB0","PB1","PB2","PB10","PB11","VSS","VDD",
+    "PB12","PB13","PB14","PB15","PA8","PA9","PA10","PA11","PA12","PA13","VSS","VDD",
+    "PA14","PA15","PB3","PB4","PB5","PB6","PB7","BOOT0","PB8","PB9","VSS","VDD"];
+  const pinText = (x, y, t, anchor, rot) => { const e = s("text", { x, y, fill: "#8E8B85", "font-family": "Geist Mono, monospace", "font-size": 9, "text-anchor": anchor, "dominant-baseline": "central" }); if (rot) e.setAttribute("transform", `rotate(${rot} ${x} ${y})`); e.textContent = t; chip.append(e); };
+  const inset = half - 22;
+  for (let i = 0; i < pins; i++) {
+    const off = (i - mid) * pitch;
+    pinText(cx - inset, cy + off, PINS[i], "start");                 // left, 1–12 top to bottom
+    pinText(cx + off, cy + inset, PINS[12 + i], "start", -90);       // bottom, 13–24 left to right
+    pinText(cx + inset, cy - off, PINS[24 + i], "end");              // right, 25–36 bottom to top
+    pinText(cx - off, cy - inset, PINS[36 + i], "start", 90);        // top, 37–48 right to left
+  }
   const chipText = (y, t, size, fam) => { const e = s("text", { x: cx, y, fill: "#D8D5CE", "font-family": fam || "Geist Mono, monospace", "font-size": size, "text-anchor": "middle" }); e.textContent = t; chip.append(e); };
-  chipText(cy - 6, "UNMOL", 30, "Instrument Serif, Georgia, serif");
-  chipText(cy + 26, "SHARMA", 30, "Instrument Serif, Georgia, serif");
-  chipText(cy + 64, "US-29 · ECE+PHY", 12);
+  chipText(cy - 8, "UNMOL", 46, "Instrument Serif, Georgia, serif");
+  chipText(cy + 40, "SHARMA", 46, "Instrument Serif, Georgia, serif");
 }
 
 
 let bootTimers = [];
 function endBoot() {
   bootTimers.forEach(clearTimeout); bootTimers = [];
-  const b = $("boot");
+  const b = $("boot"), die = document.querySelector(".die");
+  die.style.transform = ""; die.style.opacity = "";
   document.body.classList.remove("booting");
   store.set("booted", "1");
-  if (b.hidden) return;
+  if (b.hidden) { document.body.classList.remove("zooming"); return; }
   b.classList.add("gone");
-  setTimeout(() => { b.hidden = true; b.className = ""; $("pcb").style.transform = ""; }, 320);
+  setTimeout(() => { b.hidden = true; b.className = ""; $("pcb").style.transform = ""; document.body.classList.remove("zooming"); }, 320);
 }
 /* Fly the chip body onto the die's exact spot, so the chip becomes the die. */
 function flyChip() {
   const svg = $("pcb"), body = $("chip-body"), die = document.querySelector(".die");
+  die.style.transform = "";
   const c = body.getBoundingClientRect(), d = die.getBoundingClientRect(), v = svg.getBoundingClientRect();
   const k = d.width / c.width;
-  const ccx = c.left + c.width / 2, ccy = c.top + c.height / 2;
+  const ccx = c.left + c.width / 2, ccy = c.top + c.height / 2, dcx = d.left + d.width / 2, dcy = d.top + d.height / 2;
+  // the real die starts shrunk onto the chip package, invisible
+  die.style.transform = "translate(" + (ccx - dcx) + "px, " + (ccy - dcy) + "px) scale(" + (1 / k) + ")";
+  die.offsetWidth;
   svg.style.transformOrigin = (ccx - v.left) + "px " + (ccy - v.top) + "px";
-  svg.style.transform = "translate(" + (d.left + d.width / 2 - ccx) + "px, " + (d.top + d.height / 2 - ccy) + "px) scale(" + k + ")";
+  requestAnimationFrame(() => {
+    document.body.classList.add("zooming");
+    // camera pushes in: the board grows past the screen while the die grows out of the package
+    svg.style.transform = "translate(" + (dcx - ccx) + "px, " + (dcy - ccy) + "px) scale(" + k + ")";
+    die.style.transform = "";
+  });
 }
 function runBoot() {
   if (reduced) return;
   if (!$("win").hidden) closeWin(true);
   const b = $("boot");
   buildBoard($("pcb"));
+  // portrait screens: frame the middle of the board so the chip fills the width
+  const portrait = innerWidth < innerHeight * 0.8;
+  $("pcb").setAttribute("viewBox", portrait ? "290 70 620 620" : "0 0 1200 760");
+  if (portrait) $("pcb").querySelectorAll("#pcb-board > text").forEach((t) => { if (t.textContent.startsWith("FAB")) t.remove(); });
   $("pcb").style.transform = "";
   b.hidden = false; b.className = "";
   document.body.classList.add("booting");
   const at = (ms, fn) => bootTimers.push(setTimeout(fn, ms));
   const log = $("boot-log"); log.replaceChildren();
-  const label = (k) => (k + " ").padEnd(15, ".") + " ";
+  const label = (k) => (k + " ").padEnd(17, ".") + " ";
   let t = 80;
   BOOT_LOG.forEach(([k, v]) => {
     if (Array.isArray(v)) {
@@ -724,8 +763,7 @@ function runBoot() {
   at(120, () => b.classList.add("route"));
   const z = Math.max(1300, t + 150);
   at(z, () => { b.classList.add("zoom"); flyChip(); });
-  at(z + 800, () => document.body.classList.remove("booting"));
-  at(z + 950, endBoot);
+  at(z + 1250, endBoot);
 }
 
 /* ---------- Die ---------- */
