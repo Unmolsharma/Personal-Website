@@ -506,7 +506,7 @@ const SITE = {
       links: { github: "https://github.com/Unmolsharma/iQuHACK2026-VQI", writeup: "https://drive.google.com/file/d/1Y6zDryH0KT4VUvJcxF0UGENCrEWyIHJ2/view?usp=sharing", slides: "https://docs.google.com/presentation/d/1FWUuYbm5Mvj_9OHcXj4xz2OYADLAi2-wZMPzG_1woBU/edit?usp=sharing" } },
 
     // ---------- BIST: research ----------
-    { group: "Papers", block: "BIST", featured: true, year: "2026", title: "Ember",
+    { group: "Papers", block: "BIST", also: ["QPU"], featured: true, year: "2026", title: "Ember",
       desc: "An extensible benchmark suite for quantum annealing embedding algorithms. Published and presented at IEEE Quantum Week 2026.",
       images: ["images/ember.jpg"], alts: ["First page of the Ember paper"],
       links: { paper: "https://arxiv.org/abs/2604.25433", github: "https://github.com/zachmacsmith/ember" } },
@@ -570,7 +570,7 @@ const SITE = {
 const BLOCKS = {
   CORE: { name: "Venture",             color: "var(--c-core)", area: "1 / 4 / 3 / 7", hatch: "--ang:0deg;--w:2px;--pitch:6px", blurb: "Purple Hydrogen: the company, its bioreactors and the bacteria behind it." },
   NPU:  { name: "Hardware",            color: "var(--c-npu)",  area: "1 / 1 / 4 / 4", hatch: "--ang:135deg;--w:2px;--pitch:7px", blurb: "Digital design, boards and robots: an FPGA neural-net accelerator, the QubeSat timing FPGA, an STM32 board, a computer from gates up and two VEX robots." },
-  QPU:  { name: "Quantum",             color: "var(--c-qpu)",  area: "3 / 4 / 5 / 6", hatch: "--ang:45deg;--w:1px;--pitch:5px", blurb: "QubeSat and wins in quantum circuit competitions." },
+  QPU:  { name: "Quantum",             color: "var(--c-qpu)",  area: "3 / 4 / 5 / 6", hatch: "--ang:45deg;--w:1px;--pitch:5px", blurb: "Ember, QubeSat and wins in quantum circuit competitions." },
   ROM:  { name: "Experience",          color: "var(--c-exp)",  area: "3 / 6 / 7 / 7", hatch: "--ang:90deg;--w:1px;--pitch:9px", blurb: "Labs, teams and companies I've worked with.", tall: true, target: "experience" },
   BIST: { name: "Research",            color: "var(--c-rad)",  area: "4 / 1 / 7 / 3", hatch: "--ang:60deg;--w:3px;--pitch:10px", blurb: "Ember (IEEE Quantum Week), radiation effects research, information-optimal photonic test structures, a published GaN paper and technical memos." },
   GPIO: { name: "Builds & hackathons", color: "var(--c-sram)", area: "4 / 3 / 7 / 4", hatch: "--ang:0deg;--w:1px;--pitch:4px", blurb: "Hackathon wins, Cultura, proposals and side builds.", tall: true },
@@ -618,7 +618,7 @@ function h(tag, attrs, ...kids) {
 }
 function s(tag, attrs) { const el = document.createElementNS(SVGNS, tag); for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v); return el; }
 const $ = (id) => document.getElementById(id);
-const projectsIn = (k) => SITE.projects.filter((p) => p.block === k);
+const projectsIn = (k) => SITE.projects.filter((p) => p.block === k || (p.also || []).includes(k));
 const countLabel = (k) => k === "ROM" ? SITE.experience.length + " roles" : k === "JTAG" ? "bio + links" : projectsIn(k).length + " projects";
 const ext = (url, label) => h("a", { href: url, target: "_blank", rel: "noopener" }, label, icon("arrow"));
 const img = (src, alt) => h("img", { src, alt: alt || "", loading: "lazy", decoding: "async", onerror: function () { this.remove(); } });
@@ -872,7 +872,7 @@ function renderPane() {
       h("div", {}, h("strong", {}, p.title), h("span", { class: "d" }, p.desc), statusLabel(p)),
       icon("right"));
     const all = projectsIn(k);
-    const groups = [...new Set(all.map((p) => p.group).filter(Boolean))];
+    const groups = all.every((p) => p.group) ? [...new Set(all.map((p) => p.group))] : [];
     const byFeat = (arr) => arr.sort((a, c) => (c.featured ? 1 : 0) - (a.featured ? 1 : 0));
     pane.replaceChildren(head(k), ...(groups.length
       ? groups.map((g) => h("section", { class: "pgroup" }, h("h3", { class: "glabel" }, g, h("span", { class: "data" }, all.filter((p) => p.group === g).length + "")), h("div", {}, byFeat(all.filter((p) => p.group === g)).map(item))))
